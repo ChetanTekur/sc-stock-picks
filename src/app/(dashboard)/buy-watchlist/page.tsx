@@ -26,13 +26,15 @@ export default async function BuyWatchlistPage() {
     .filter((ut) => ut.stocks && buyStockIds.has((ut.stocks as any).id))
     .map((ut) => {
       const s = ut.stocks as any;
+      const hasSMA = s.sma_200w !== null && s.sma_200w !== undefined && Number(s.sma_200w) > 0;
       return {
         id: s.id,
+        userTickerId: ut.id,
         ticker: s.ticker,
         companyName: s.company_name ?? s.ticker,
         currentPrice: s.current_price ?? 0,
-        sma200w: s.sma_200w ?? 0,
-        percentDistance: s.price_vs_sma_pct ?? 0,
+        sma200w: hasSMA ? Number(s.sma_200w) : null,
+        percentDistance: hasSMA ? Number(s.price_vs_sma_pct) : null,
         smaSlope: s.sma_slope_ever_negative ? "down" : "up",
         status: "BUY" as const,
         isOwned: ut.is_owned,

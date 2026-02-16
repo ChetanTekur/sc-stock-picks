@@ -1,12 +1,23 @@
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { StockStatusBadge } from "./stock-status-badge";
 import { SlopeIndicator } from "./slope-indicator";
 import { PriceDisplay } from "./price-display";
 import { PercentDistance } from "./percent-distance";
 import type { StockDisplay } from "@/types/stock";
 import { cn } from "@/lib/utils";
+import { Trash2 } from "lucide-react";
 
-export function StockCard({ stock }: { stock: StockDisplay }) {
+interface StockCardProps {
+  stock: StockDisplay;
+  onRemove?: (userTickerId: string, ticker: string) => Promise<void>;
+}
+
+export function StockCard({ stock, onRemove }: StockCardProps) {
+  const hasSMA = stock.sma200w !== null && stock.sma200w !== undefined && stock.sma200w !== 0;
+
   return (
     <Card
       className={cn(
@@ -21,7 +32,19 @@ export function StockCard({ stock }: { stock: StockDisplay }) {
           <CardTitle className="text-base font-mono">{stock.ticker}</CardTitle>
           <CardDescription className="text-xs">{stock.companyName}</CardDescription>
         </div>
-        <StockStatusBadge status={stock.status} />
+        <div className="flex items-center gap-2">
+          <StockStatusBadge status={stock.status} />
+          {onRemove && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              onClick={() => onRemove(stock.userTickerId, stock.ticker)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="grid grid-cols-2 gap-2 text-sm">
         <div>
@@ -30,11 +53,23 @@ export function StockCard({ stock }: { stock: StockDisplay }) {
         </div>
         <div>
           <span className="text-muted-foreground text-xs">200W SMA</span>
-          <div><PriceDisplay value={stock.sma200w} /></div>
+          <div>
+            {hasSMA ? (
+              <PriceDisplay value={stock.sma200w!} />
+            ) : (
+              <span className="font-mono text-muted-foreground">N/A</span>
+            )}
+          </div>
         </div>
         <div>
           <span className="text-muted-foreground text-xs">% Distance</span>
-          <div><PercentDistance value={stock.percentDistance} /></div>
+          <div>
+            {hasSMA && stock.percentDistance !== null ? (
+              <PercentDistance value={stock.percentDistance} />
+            ) : (
+              <span className="font-mono text-muted-foreground">—</span>
+            )}
+          </div>
         </div>
         <div>
           <span className="text-muted-foreground text-xs">Slope</span>

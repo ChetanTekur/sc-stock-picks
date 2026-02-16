@@ -2,11 +2,12 @@ import type { SignalType } from "./database";
 
 export interface StockDisplay {
   id: string;
+  userTickerId: string;
   ticker: string;
   companyName: string;
   currentPrice: number;
-  sma200w: number;
-  percentDistance: number;
+  sma200w: number | null;
+  percentDistance: number | null;
   smaSlope: "up" | "down";
   status: SignalType;
   isOwned: boolean;

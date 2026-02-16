@@ -1,6 +1,4 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { SummaryCards } from "@/components/dashboard/summary-cards";
-import { StockTable } from "@/components/stocks/stock-table";
 import { DashboardClient } from "./dashboard-client";
 import type { StockDisplay, DashboardSummary } from "@/types/stock";
 
@@ -45,13 +43,15 @@ export default async function DashboardPage() {
     .map((ut) => {
       const s = ut.stocks as any;
       const signal = signalMap.get(s.id);
+      const hasSMA = s.sma_200w !== null && s.sma_200w !== undefined && Number(s.sma_200w) > 0;
       return {
         id: s.id,
+        userTickerId: ut.id,
         ticker: s.ticker,
         companyName: s.company_name ?? s.ticker,
         currentPrice: s.current_price ?? 0,
-        sma200w: s.sma_200w ?? 0,
-        percentDistance: s.price_vs_sma_pct ?? 0,
+        sma200w: hasSMA ? Number(s.sma_200w) : null,
+        percentDistance: hasSMA ? Number(s.price_vs_sma_pct) : null,
         smaSlope: s.sma_slope_ever_negative ? "down" : "up",
         status: signal?.signal_type ?? "NEUTRAL",
         isOwned: ut.is_owned,
@@ -66,30 +66,5 @@ export default async function DashboardPage() {
     neutralCount: stocks.filter((s) => s.status === "NEUTRAL").length,
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Dashboard</h2>
-        <DashboardClient />
-      </div>
-      <SummaryCards summary={summary} />
-      <div className="hidden lg:block">
-        <StockTable stocks={stocks} />
-      </div>
-      <div className="lg:hidden space-y-3">
-        {stocks.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <p className="text-lg">No stocks tracked yet</p>
-            <p className="text-sm">Add your first stock to get started</p>
-          </div>
-        ) : (
-          stocks.map((stock) => (
-            <div key={stock.id}>
-              {/* Import StockCard dynamically or inline */}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
+  return <DashboardClient stocks={stocks} summary={summary} />;
 }

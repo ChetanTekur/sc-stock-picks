@@ -10,7 +10,7 @@ import {
   Legend,
 } from "recharts";
 import type { ChartDataPoint } from "@/types/stock";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface StockChartProps {
   data: ChartDataPoint[];
@@ -42,10 +42,19 @@ export function StockChart({ data, ticker }: StockChartProps) {
     );
   }
 
+  const hasSMA = data.some((d) => d.sma200w !== null && d.sma200w !== undefined);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Price vs 200W SMA - {ticker}</CardTitle>
+        <CardTitle>
+          {hasSMA ? `Price vs 200W SMA - ${ticker}` : `Price History - ${ticker}`}
+        </CardTitle>
+        {!hasSMA && (
+          <CardDescription>
+            200W SMA not available — this stock needs ~4 years of trading history to calculate the 200-week moving average.
+          </CardDescription>
+        )}
       </CardHeader>
       <CardContent>
         <div className="h-[400px] w-full">
@@ -96,16 +105,18 @@ export function StockChart({ data, ticker }: StockChartProps) {
                 dot={false}
                 connectNulls
               />
-              <Line
-                type="monotone"
-                dataKey="sma200w"
-                name="200W SMA"
-                stroke="#f59e0b"
-                strokeWidth={2}
-                dot={false}
-                connectNulls
-                strokeDasharray="5 5"
-              />
+              {hasSMA && (
+                <Line
+                  type="monotone"
+                  dataKey="sma200w"
+                  name="200W SMA"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                  strokeDasharray="5 5"
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>
