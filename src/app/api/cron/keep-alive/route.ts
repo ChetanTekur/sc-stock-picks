@@ -20,11 +20,28 @@ function verifyCronSecret(request: NextRequest): boolean {
 }
 
 export async function GET(request: NextRequest) {
-  if (!verifyCronSecret(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    if (!verifyCronSecret(request)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  } catch (authError) {
+    console.error("Keep-alive auth verification failed:", authError);
+    return NextResponse.json(
+      { error: `Auth verification failed: ${authError instanceof Error ? authError.message : String(authError)}` },
+      { status: 500 }
+    );
   }
 
-  const admin = createAdminClient();
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch (clientError) {
+    console.error("Failed to create Supabase admin client:", clientError);
+    return NextResponse.json(
+      { error: `Admin client init failed: ${clientError instanceof Error ? clientError.message : String(clientError)}` },
+      { status: 500 }
+    );
+  }
 
   try {
     const { error } = await admin.from("stocks").select("id").limit(1);

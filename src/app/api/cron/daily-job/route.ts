@@ -44,11 +44,29 @@ function getCurrentWeekEnding(): string {
 }
 
 export async function GET(request: NextRequest) {
-  if (!verifyCronSecret(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    if (!verifyCronSecret(request)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  } catch (authError) {
+    console.error("Cron auth verification failed:", authError);
+    return NextResponse.json(
+      { error: `Auth verification failed: ${authError instanceof Error ? authError.message : String(authError)}` },
+      { status: 500 }
+    );
   }
 
-  const admin = createAdminClient();
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch (clientError) {
+    console.error("Failed to create Supabase admin client:", clientError);
+    return NextResponse.json(
+      { error: `Admin client init failed: ${clientError instanceof Error ? clientError.message : String(clientError)}` },
+      { status: 500 }
+    );
+  }
+
   const startTime = Date.now();
 
   const processed: string[] = [];
