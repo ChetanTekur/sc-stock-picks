@@ -8,9 +8,9 @@ import { hasNeverHadNegativeSlope } from "./slope";
  * Evaluate BUY signal criteria for a stock.
  *
  * BUY when ALL three are true:
- * 1. Current price > 200W SMA (price is above SMA)
- * 2. 200W SMA 4-week rolling slope has never been negative in past 7 years
- * 3. Current price is within 5% above the 200W SMA (price <= SMA * 1.05)
+ * 1. Current price > SMA (price is above SMA)
+ * 2. SMA 4-week rolling slope has never been negative in past 7 years
+ * 3. Current price is within 8% above the SMA (5% base + 3% margin)
  */
 export function evaluateBuySignal(
   currentPrice: number,

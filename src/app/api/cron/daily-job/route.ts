@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchLatestPrice } from "@/lib/stock-data/fetcher";
-import { calculate200WSMA } from "@/lib/signals/sma";
+import { calculateFlexibleSMA } from "@/lib/signals/sma";
 import { calculateRollingSlope, hasNeverHadNegativeSlope } from "@/lib/signals/slope";
 import { evaluateBuySignal } from "@/lib/signals/buy-signal";
 import { evaluateSellSignal } from "@/lib/signals/sell-signal";
@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
           closePrice: w.close_price,
         }));
 
-        const smaResults = calculate200WSMA(closePrices);
+        const { results: smaResults } = calculateFlexibleSMA(closePrices);
 
         // Step 5: Recalculate 4-week rolling slope
         const slopes = calculateRollingSlope(smaResults);

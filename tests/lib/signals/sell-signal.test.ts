@@ -7,6 +7,9 @@ function makeSMAResults(currentSMA: number): SMAResult[] {
 }
 
 describe("evaluateSellSignal", () => {
+  // SELL_ABOVE_SMA_PCT = 57% (60% base - 3% margin)
+  // SELL_BELOW_SMA_PCT = 2% (5% base - 3% margin)
+
   it("no sell signal for price moderately above SMA", () => {
     // Price: 120, SMA: 100, distance: +20%
     const result = evaluateSellSignal(120, makeSMAResults(100));
@@ -15,13 +18,13 @@ describe("evaluateSellSignal", () => {
     expect(result.isFivePercentBelow).toBe(false);
   });
 
-  it("triggers SELL_HIGH when price is 60% or more above SMA", () => {
-    // Price: 160, SMA: 100, distance: +60%
-    const result = evaluateSellSignal(160, makeSMAResults(100));
+  it("triggers SELL_HIGH when price is 57%+ above SMA", () => {
+    // Price: 158, SMA: 100, distance: +58% (clearly above 57% threshold)
+    const result = evaluateSellSignal(158, makeSMAResults(100));
     expect(result.hasSellSignal).toBe(true);
     expect(result.isSixtyPercentAbove).toBe(true);
     expect(result.isFivePercentBelow).toBe(false);
-    expect(result.percentDistance).toBeCloseTo(60, 1);
+    expect(result.percentDistance).toBeCloseTo(58, 1);
   });
 
   it("triggers SELL_HIGH above the boundary", () => {
@@ -30,13 +33,19 @@ describe("evaluateSellSignal", () => {
     expect(result.isSixtyPercentAbove).toBe(true);
   });
 
-  it("triggers SELL_LOW when price dips 5% or more below SMA", () => {
-    // Price: 95, SMA: 100, distance: -5%
-    const result = evaluateSellSignal(95, makeSMAResults(100));
+  it("does not trigger at +56.99% (just below 57% threshold)", () => {
+    const result = evaluateSellSignal(156.99, makeSMAResults(100));
+    expect(result.hasSellSignal).toBe(false);
+    expect(result.isSixtyPercentAbove).toBe(false);
+  });
+
+  it("triggers SELL_LOW when price dips 2% or more below SMA", () => {
+    // Price: 98, SMA: 100, distance: -2%
+    const result = evaluateSellSignal(98, makeSMAResults(100));
     expect(result.hasSellSignal).toBe(true);
     expect(result.isFivePercentBelow).toBe(true);
     expect(result.isSixtyPercentAbove).toBe(false);
-    expect(result.percentDistance).toBeCloseTo(-5, 1);
+    expect(result.percentDistance).toBeCloseTo(-2, 1);
   });
 
   it("triggers SELL_LOW for deeper dips", () => {
@@ -45,17 +54,11 @@ describe("evaluateSellSignal", () => {
     expect(result.isFivePercentBelow).toBe(true);
   });
 
-  it("does not trigger at -4.99% (just above threshold)", () => {
-    // Price: 95.01, SMA: 100, distance: -4.99%
-    const result = evaluateSellSignal(95.01, makeSMAResults(100));
+  it("does not trigger at -1.99% (just above 2% threshold)", () => {
+    // Price: 98.01, SMA: 100, distance: -1.99%
+    const result = evaluateSellSignal(98.01, makeSMAResults(100));
     expect(result.hasSellSignal).toBe(false);
     expect(result.isFivePercentBelow).toBe(false);
-  });
-
-  it("does not trigger at +59.99% (just below threshold)", () => {
-    const result = evaluateSellSignal(159.99, makeSMAResults(100));
-    expect(result.hasSellSignal).toBe(false);
-    expect(result.isSixtyPercentAbove).toBe(false);
   });
 
   it("handles null/zero SMA gracefully", () => {

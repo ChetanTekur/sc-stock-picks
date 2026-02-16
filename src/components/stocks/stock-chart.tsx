@@ -48,11 +48,11 @@ export function StockChart({ data, ticker }: StockChartProps) {
     <Card>
       <CardHeader>
         <CardTitle>
-          {hasSMA ? `Price vs 200W SMA - ${ticker}` : `Price History - ${ticker}`}
+          {hasSMA ? `Price vs SMA - ${ticker}` : `Price History - ${ticker}`}
         </CardTitle>
         {!hasSMA && (
           <CardDescription>
-            200W SMA not available — this stock needs ~4 years of trading history to calculate the 200-week moving average.
+            Not enough trading history to calculate a moving average (need at least 20 weeks).
           </CardDescription>
         )}
       </CardHeader>
@@ -109,7 +109,7 @@ export function StockChart({ data, ticker }: StockChartProps) {
                 <Line
                   type="monotone"
                   dataKey="sma200w"
-                  name="200W SMA"
+                  name="SMA"
                   stroke="#f59e0b"
                   strokeWidth={2}
                   dot={false}

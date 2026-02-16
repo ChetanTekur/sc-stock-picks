@@ -92,7 +92,7 @@ export function StockMiniChart({ data, ticker }: StockMiniChartProps) {
             <Line
               type="monotone"
               dataKey="sma200w"
-              name="200W SMA"
+              name="SMA"
               stroke="#f59e0b"
               strokeWidth={1.5}
               dot={false}

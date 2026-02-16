@@ -1,10 +1,12 @@
 export const SMA_WEEKS = 200;
+export const SMA_MIN_WEEKS = 20; // Minimum weeks needed for a meaningful fallback SMA
 export const SLOPE_ROLLING_WEEKS = 4;
 export const SLOPE_HISTORY_YEARS = 7;
 export const SLOPE_HISTORY_WEEKS = SLOPE_HISTORY_YEARS * 52;
-export const BUY_ABOVE_SMA_MAX_PCT = 5;
-export const SELL_ABOVE_SMA_PCT = 60;
-export const SELL_BELOW_SMA_PCT = 5;
+export const SIGNAL_MARGIN_PCT = 3; // ±3% tolerance margin on signal thresholds
+export const BUY_ABOVE_SMA_MAX_PCT = 5 + SIGNAL_MARGIN_PCT; // 8% (was 5%)
+export const SELL_ABOVE_SMA_PCT = 60 - SIGNAL_MARGIN_PCT; // 57% (was 60%)
+export const SELL_BELOW_SMA_PCT = 5 - SIGNAL_MARGIN_PCT; // 2% (was 5%)
 export const MAX_USERS = 10;
 export const BACKFILL_YEARS = 10;
 export const INVITE_TOKEN_EXPIRY_DAYS = 7;

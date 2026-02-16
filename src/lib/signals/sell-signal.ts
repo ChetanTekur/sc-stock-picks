@@ -7,8 +7,8 @@ import { getCurrentSMA } from "./sma";
  * Evaluate SELL signal criteria for a stock.
  *
  * SELL when EITHER is true (for owned stocks):
- * 1. Price >= 60% above 200W SMA (price >= SMA * 1.60)
- * 2. Price dips >= 5% below 200W SMA (price <= SMA * 0.95)
+ * 1. Price >= 57% above SMA (60% base - 3% margin)
+ * 2. Price dips >= 2% below SMA (5% base - 3% margin)
  */
 export function evaluateSellSignal(
   currentPrice: number,

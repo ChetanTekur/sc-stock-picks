@@ -20,8 +20,10 @@ function makeMixedSlopes(): SlopeResult[] {
 }
 
 describe("evaluateBuySignal", () => {
+  // BUY_ABOVE_SMA_MAX_PCT = 8% (5% base + 3% margin)
+
   it("returns meetsAllCriteria=true when all conditions are met", () => {
-    // Price: 103, SMA: 100, distance: +3% (within 5%), slopes all positive
+    // Price: 103, SMA: 100, distance: +3% (within 8%), slopes all positive
     const result = evaluateBuySignal(103, makeSMAResults(100), makePositiveSlopes());
     expect(result.meetsAllCriteria).toBe(true);
     expect(result.priceAboveSMA).toBe(true);
@@ -30,15 +32,22 @@ describe("evaluateBuySignal", () => {
     expect(result.percentDistance).toBeCloseTo(3, 1);
   });
 
+  it("returns true at 7% above SMA (within 8% margin)", () => {
+    // Price: 107, SMA: 100, distance: +7%
+    const result = evaluateBuySignal(107, makeSMAResults(100), makePositiveSlopes());
+    expect(result.meetsAllCriteria).toBe(true);
+    expect(result.withinFivePercent).toBe(true);
+  });
+
   it("returns false when price is below SMA", () => {
     const result = evaluateBuySignal(95, makeSMAResults(100), makePositiveSlopes());
     expect(result.meetsAllCriteria).toBe(false);
     expect(result.priceAboveSMA).toBe(false);
   });
 
-  it("returns false when price is more than 5% above SMA", () => {
-    // Price: 106, SMA: 100, distance: +6%
-    const result = evaluateBuySignal(106, makeSMAResults(100), makePositiveSlopes());
+  it("returns false when price is more than 8% above SMA", () => {
+    // Price: 109, SMA: 100, distance: +9%
+    const result = evaluateBuySignal(109, makeSMAResults(100), makePositiveSlopes());
     expect(result.meetsAllCriteria).toBe(false);
     expect(result.priceAboveSMA).toBe(true);
     expect(result.withinFivePercent).toBe(false);
@@ -50,16 +59,16 @@ describe("evaluateBuySignal", () => {
     expect(result.slopeNeverNegative).toBe(false);
   });
 
-  it("returns true at exactly 5% boundary", () => {
-    // Price: 105, SMA: 100, distance: exactly 5%
-    const result = evaluateBuySignal(105, makeSMAResults(100), makePositiveSlopes());
+  it("returns true at exactly 8% boundary", () => {
+    // Price: 108, SMA: 100, distance: exactly 8%
+    const result = evaluateBuySignal(108, makeSMAResults(100), makePositiveSlopes());
     expect(result.meetsAllCriteria).toBe(true);
     expect(result.withinFivePercent).toBe(true);
-    expect(result.percentDistance).toBeCloseTo(5, 1);
+    expect(result.percentDistance).toBeCloseTo(8, 1);
   });
 
-  it("returns false just above 5% boundary", () => {
-    const result = evaluateBuySignal(105.01, makeSMAResults(100), makePositiveSlopes());
+  it("returns false just above 8% boundary", () => {
+    const result = evaluateBuySignal(108.01, makeSMAResults(100), makePositiveSlopes());
     expect(result.meetsAllCriteria).toBe(false);
     expect(result.withinFivePercent).toBe(false);
   });

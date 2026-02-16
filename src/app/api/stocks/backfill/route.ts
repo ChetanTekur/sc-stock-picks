@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchStockData, fetchLatestPrice } from "@/lib/stock-data/fetcher";
-import { calculate200WSMA } from "@/lib/signals/sma";
+import { calculateFlexibleSMA } from "@/lib/signals/sma";
 import { calculateRollingSlope, hasNeverHadNegativeSlope } from "@/lib/signals/slope";
 import { evaluateBuySignal } from "@/lib/signals/buy-signal";
 import { evaluateSellSignal } from "@/lib/signals/sell-signal";
+import { SMA_WEEKS } from "@/lib/utils/constants";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -50,14 +51,15 @@ export async function POST(request: NextRequest) {
         .upsert(batch, { onConflict: "stock_id,week_ending" });
     }
 
-    // Calculate signals
+    // Calculate signals using flexible SMA (200W or fallback to available data)
     const closePrices = weeklyData.map((w) => ({
       weekEnding: w.weekEnding,
       closePrice: w.close,
     }));
 
-    const smaResults = calculate200WSMA(closePrices);
+    const { results: smaResults, period: smaPeriod } = calculateFlexibleSMA(closePrices);
     const slopes = calculateRollingSlope(smaResults);
+    const isFullSMA = smaPeriod === SMA_WEEKS;
 
     // Get current price
     const latestQuote = await fetchLatestPrice(ticker);
@@ -105,6 +107,8 @@ export async function POST(request: NextRequest) {
         price: currentPrice,
         sma: buyEval.sma200w,
         pct_distance: buyEval.percentDistance,
+        sma_period: smaPeriod,
+        is_full_200w: isFullSMA,
       },
     });
 
@@ -127,6 +131,8 @@ export async function POST(request: NextRequest) {
       ticker,
       signal: signalType,
       weeksLoaded: weeklyData.length,
+      smaPeriod,
+      isFullSMA,
     });
   } catch (error) {
     console.error(`Backfill failed for ${ticker}:`, error);
