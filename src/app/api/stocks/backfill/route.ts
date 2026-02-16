@@ -108,13 +108,18 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update SMA values in weekly_prices
-    for (const sma of smaResults) {
+    // Update SMA values in weekly_prices (batch upsert for performance)
+    const smaUpdateRows = smaResults.map((sma) => ({
+      stock_id: stock.id,
+      week_ending: sma.weekEnding,
+      close_price: weeklyData.find((w) => w.weekEnding === sma.weekEnding)?.close ?? 0,
+      sma_200w_at_week: sma.smaValue,
+    }));
+    for (let i = 0; i < smaUpdateRows.length; i += 500) {
+      const batch = smaUpdateRows.slice(i, i + 500);
       await admin
         .from("weekly_prices")
-        .update({ sma_200w_at_week: sma.smaValue })
-        .eq("stock_id", stock.id)
-        .eq("week_ending", sma.weekEnding);
+        .upsert(batch, { onConflict: "stock_id,week_ending" });
     }
 
     return NextResponse.json({

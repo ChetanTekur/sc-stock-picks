@@ -83,11 +83,12 @@ export async function POST(request: NextRequest) {
     stock = newStock;
 
     // Trigger backfill in the background (fire and forget)
-    fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/stocks/backfill`, {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+    fetch(`${appUrl}/api/stocks/backfill`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ticker }),
-    }).catch(console.error);
+    }).catch((err) => console.error(`Backfill trigger failed for ${ticker}:`, err));
   }
 
   // Add user-ticker relationship
