@@ -7,10 +7,6 @@
     {
       "path": "/api/cron/daily-job?trigger=market_close",
       "schedule": "0 21 * * 1-5"
-    },
-    {
-      "path": "/api/cron/keep-alive",
-      "schedule": "0 12 * * *"
     }
   ],
   "functions": {
