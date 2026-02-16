@@ -3,8 +3,11 @@ import {
   sendBuyAlert,
   sendSellAlert,
   sendDailyDigest,
+  sendMarketSummary,
   type StockAlertData,
   type DailyDigestSummary,
+  type MarketTrigger,
+  type MarketSummaryData,
 } from "./email";
 import type { SignalType } from "@/types/database";
 
@@ -31,10 +34,20 @@ export interface NotifiableUser {
 interface NotificationResult {
   userId: string;
   email: string;
-  type: "buy_alert" | "sell_alert" | "daily_digest";
+  type: "buy_alert" | "sell_alert" | "daily_digest" | "market_summary";
   success: boolean;
   messageId?: string;
   error?: string;
+}
+
+export interface StockSummaryItem {
+  stockId: string;
+  ticker: string;
+  companyName: string;
+  signalType: SignalType;
+  currentPrice: number;
+  sma200w: number;
+  percentDistance: number;
 }
 
 /**
@@ -280,4 +293,128 @@ async function sendDigestAndLog(
       error: errorMessage,
     };
   }
+}
+
+/**
+ * Send a market summary email to all users with notifications enabled.
+ * This is called at market open and market close, regardless of signal changes.
+ *
+ * - Sends a full portfolio overview grouped by signal type
+ * - Highlights any signals that changed during this run
+ * - Logs the notification in the notifications table
+ */
+export async function processMarketSummary(
+  allStocks: StockSummaryItem[],
+  changedSignals: SignalWithStock[],
+  users: NotifiableUser[],
+  trigger: MarketTrigger
+): Promise<NotificationResult[]> {
+  const admin = createAdminClient();
+  const results: NotificationResult[] = [];
+
+  // Format current time in ET
+  const now = new Date();
+  const etTime = now.toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  const dateStr = now.toISOString().split("T")[0];
+
+  for (const user of users) {
+    if (!user.emailNotificationsEnabled) continue;
+
+    const targetEmail = user.notificationEmail ?? user.email;
+
+    // Filter stocks to only those the user tracks
+    const userStocks = allStocks.filter((s) =>
+      user.trackedStockIds.includes(s.stockId)
+    );
+
+    if (userStocks.length === 0) continue;
+
+    const toAlert = (s: StockSummaryItem): StockAlertData => ({
+      ticker: s.ticker,
+      companyName: s.companyName,
+      currentPrice: s.currentPrice,
+      sma200w: s.sma200w,
+      percentDistance: s.percentDistance,
+    });
+
+    const buyStocks = userStocks.filter((s) => s.signalType === "BUY");
+    const sellStocks = userStocks.filter(
+      (s) => s.signalType === "SELL_HIGH" || s.signalType === "SELL_LOW"
+    );
+    const neutralStocks = userStocks.filter((s) => s.signalType === "NEUTRAL");
+
+    // Signal changes relevant to this user
+    const userChanges = changedSignals.filter((s) =>
+      user.trackedStockIds.includes(s.stockId)
+    );
+
+    const summaryData: MarketSummaryData = {
+      trigger,
+      totalTracked: userStocks.length,
+      buySignals: buyStocks.map(toAlert),
+      sellSignals: sellStocks.map(toAlert),
+      neutralStocks: neutralStocks.map(toAlert),
+      signalChanges: userChanges.map(toAlertData),
+      date: dateStr,
+      time: etTime,
+    };
+
+    try {
+      const messageId = await sendMarketSummary(targetEmail, summaryData);
+
+      await admin.from("notifications").insert({
+        user_id: user.userId,
+        signal_id: null,
+        channel: "email",
+        email_subject: `${trigger === "market_open" ? "Market Open" : "Market Close"} Summary: ${userStocks.length} stocks — ${dateStr}`,
+        sent_at: new Date().toISOString(),
+        resend_message_id: messageId,
+        status: "sent" as const,
+      });
+
+      results.push({
+        userId: user.userId,
+        email: targetEmail,
+        type: "market_summary",
+        success: true,
+        messageId,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      console.error(
+        `Failed to send market summary to ${targetEmail}:`,
+        errorMessage
+      );
+
+      try {
+        await admin.from("notifications").insert({
+          user_id: user.userId,
+          signal_id: null,
+          channel: "email",
+          email_subject: `Market Summary (failed)`,
+          sent_at: new Date().toISOString(),
+          resend_message_id: null,
+          status: "failed" as const,
+        });
+      } catch (logError) {
+        console.error("Failed to log market summary failure:", logError);
+      }
+
+      results.push({
+        userId: user.userId,
+        email: targetEmail,
+        type: "market_summary",
+        success: false,
+        error: errorMessage,
+      });
+    }
+  }
+
+  return results;
 }

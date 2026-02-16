@@ -32,6 +32,19 @@ export interface DailyDigestSummary {
   date: string;
 }
 
+export type MarketTrigger = "market_open" | "market_close";
+
+export interface MarketSummaryData {
+  trigger: MarketTrigger;
+  totalTracked: number;
+  buySignals: StockAlertData[];
+  sellSignals: StockAlertData[];
+  neutralStocks: StockAlertData[];
+  signalChanges: StockAlertData[];
+  date: string;
+  time: string;
+}
+
 function formatPrice(price: number): string {
   return `$${price.toFixed(2)}`;
 }
@@ -272,6 +285,95 @@ export async function sendDailyDigest(
 
   if (error) {
     throw new Error(`Failed to send daily digest: ${error.message}`);
+  }
+
+  return data!.id;
+}
+
+/**
+ * Send a market summary email (at market open or market close).
+ * Includes ALL tracked stocks grouped by signal type, sent regardless of changes.
+ * Returns the Resend message ID on success.
+ */
+export async function sendMarketSummary(
+  email: string,
+  summary: MarketSummaryData
+): Promise<string> {
+  const triggerLabel =
+    summary.trigger === "market_open" ? "Market Open" : "Market Close";
+  const subject = `${triggerLabel} Summary: ${summary.totalTracked} stocks — ${summary.date}`;
+
+  let changesHtml = "";
+  if (summary.signalChanges.length > 0) {
+    changesHtml = `
+      <div class="card" style="border-left: 4px solid #f59e0b;">
+        <h2 style="margin-top: 0; color: #f59e0b;">⚡ Signal Changes Since Last Check</h2>
+        ${stockTable(summary.signalChanges, "CHANGED")}
+      </div>
+    `;
+  }
+
+  let signalSummaryHtml = "";
+  if (summary.buySignals.length > 0) {
+    signalSummaryHtml += `
+      <div class="card">
+        <h2 style="margin-top: 0;" class="buy">BUY Signals (${summary.buySignals.length})</h2>
+        ${stockTable(summary.buySignals, "BUY")}
+      </div>
+    `;
+  }
+  if (summary.sellSignals.length > 0) {
+    signalSummaryHtml += `
+      <div class="card">
+        <h2 style="margin-top: 0;" class="sell">SELL Signals (${summary.sellSignals.length})</h2>
+        ${stockTable(summary.sellSignals, "SELL")}
+      </div>
+    `;
+  }
+  if (summary.neutralStocks.length > 0) {
+    signalSummaryHtml += `
+      <div class="card">
+        <h2 style="margin-top: 0;" class="neutral">Neutral (${summary.neutralStocks.length})</h2>
+        ${stockTable(summary.neutralStocks, "NEUTRAL")}
+      </div>
+    `;
+  }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>${baseStyles()}</head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>${triggerLabel} Summary &mdash; ${summary.date}</h1>
+          <p style="margin: 8px 0 0; opacity: 0.8; font-size: 14px;">${summary.time} ET</p>
+        </div>
+        <div class="card">
+          <p>Here is your <strong>${triggerLabel.toLowerCase()}</strong> summary of <strong>${summary.totalTracked}</strong> tracked stock${summary.totalTracked !== 1 ? "s" : ""}.</p>
+          <p>
+            <span class="buy">${summary.buySignals.length} BUY</span> &nbsp;|&nbsp;
+            <span class="sell">${summary.sellSignals.length} SELL</span> &nbsp;|&nbsp;
+            <span class="neutral">${summary.neutralStocks.length} NEUTRAL</span>
+          </p>
+        </div>
+        ${changesHtml}
+        ${signalSummaryHtml}
+        ${footerHtml()}
+      </div>
+    </body>
+    </html>
+  `;
+
+  const { data, error } = await getResend().emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject,
+    html,
+  });
+
+  if (error) {
+    throw new Error(`Failed to send market summary: ${error.message}`);
   }
 
   return data!.id;

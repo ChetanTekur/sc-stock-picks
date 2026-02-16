@@ -7,9 +7,12 @@ import { evaluateBuySignal } from "@/lib/signals/buy-signal";
 import { evaluateSellSignal } from "@/lib/signals/sell-signal";
 import {
   processNotifications,
+  processMarketSummary,
   type SignalWithStock,
+  type StockSummaryItem,
   type NotifiableUser,
 } from "@/lib/notifications";
+import type { MarketTrigger } from "@/lib/notifications/email";
 import type { SignalType } from "@/types/database";
 import { cronAuthSchema } from "@/lib/validation/schemas";
 
@@ -67,11 +70,16 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Read trigger type from query param (market_open or market_close)
+  const url = new URL(request.url);
+  const trigger = (url.searchParams.get("trigger") ?? "market_close") as MarketTrigger;
+
   const startTime = Date.now();
 
   const processed: string[] = [];
   const errors: { ticker: string; error: string }[] = [];
   const newSignals: SignalWithStock[] = [];
+  const allStockSummaries: StockSummaryItem[] = [];
 
   try {
     // Step 1: Fetch all unique stock_ids from user_tickers
@@ -267,6 +275,17 @@ export async function GET(request: NextRequest) {
 
         processed.push(stock.ticker);
 
+        // Collect ALL stock summaries for market summary email
+        allStockSummaries.push({
+          stockId: stock.id,
+          ticker: stock.ticker,
+          companyName: companyName,
+          signalType,
+          currentPrice,
+          sma200w: buyEval.sma200w,
+          percentDistance: buyEval.percentDistance,
+        });
+
         // Collect new/changed signals for notifications
         if (signalChanged && newSignalId) {
           newSignals.push({
@@ -289,77 +308,91 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Step 9-11: Notifications
+    // Step 9-11: Notifications — always send market summary to all users
     let notificationResults: Awaited<ReturnType<typeof processNotifications>> = [];
+    let summaryResults: Awaited<ReturnType<typeof processMarketSummary>> = [];
 
-    if (newSignals.length > 0) {
-      try {
-        // Step 9: Find users who need notifications
-        const { data: preferencesData } = await admin
-          .from("user_preferences")
-          .select("*")
-          .eq("email_notifications_enabled", true);
+    try {
+      // Find ALL users with notifications enabled
+      const { data: preferencesData } = await admin
+        .from("user_preferences")
+        .select("*")
+        .eq("email_notifications_enabled", true);
 
-        if (preferencesData && preferencesData.length > 0) {
-          // Get user emails from auth
-          const userIds = preferencesData.map((p) => p.user_id);
-          const { data: authUsers } = await admin.auth.admin.listUsers();
+      if (preferencesData && preferencesData.length > 0) {
+        // Get user emails from auth
+        const userIds = preferencesData.map((p) => p.user_id);
+        const { data: authUsers } = await admin.auth.admin.listUsers();
 
-          const authUserMap = new Map(
-            authUsers?.users
-              ?.filter((u) => userIds.includes(u.id))
-              .map((u) => [u.id, u.email]) ?? []
-          );
+        const authUserMap = new Map(
+          authUsers?.users
+            ?.filter((u) => userIds.includes(u.id))
+            .map((u) => [u.id, u.email]) ?? []
+        );
 
-          // Get tracked stock IDs per user
-          const { data: allUserTickers } = await admin
-            .from("user_tickers")
-            .select("user_id, stock_id")
-            .in("user_id", userIds);
+        // Get tracked stock IDs per user
+        const { data: allUserTickers } = await admin
+          .from("user_tickers")
+          .select("user_id, stock_id")
+          .in("user_id", userIds);
 
-          const userTickerMap = new Map<string, string[]>();
-          for (const ut of allUserTickers ?? []) {
-            const existing = userTickerMap.get(ut.user_id) ?? [];
-            existing.push(ut.stock_id);
-            userTickerMap.set(ut.user_id, existing);
-          }
+        const userTickerMap = new Map<string, string[]>();
+        for (const ut of allUserTickers ?? []) {
+          const existing = userTickerMap.get(ut.user_id) ?? [];
+          existing.push(ut.stock_id);
+          userTickerMap.set(ut.user_id, existing);
+        }
 
-          const notifiableUsers: NotifiableUser[] = preferencesData
-            .filter((p) => authUserMap.has(p.user_id))
-            .map((p) => ({
-              userId: p.user_id,
-              email: authUserMap.get(p.user_id)!,
-              notificationEmail: p.notification_email,
-              emailNotificationsEnabled: p.email_notifications_enabled,
-              dailyDigestEnabled: p.daily_digest_enabled,
-              trackedStockIds: userTickerMap.get(p.user_id) ?? [],
-            }));
+        const notifiableUsers: NotifiableUser[] = preferencesData
+          .filter((p) => authUserMap.has(p.user_id))
+          .map((p) => ({
+            userId: p.user_id,
+            email: authUserMap.get(p.user_id)!,
+            notificationEmail: p.notification_email,
+            emailNotificationsEnabled: p.email_notifications_enabled,
+            dailyDigestEnabled: p.daily_digest_enabled,
+            trackedStockIds: userTickerMap.get(p.user_id) ?? [],
+          }));
 
-          // Step 10 & 11: Send notifications and log them
+        // Send individual buy/sell alerts for changed signals (deduped)
+        if (newSignals.length > 0) {
           notificationResults = await processNotifications(
             newSignals,
             notifiableUsers
           );
         }
-      } catch (error) {
-        console.error("Notification processing failed:", error);
-        errors.push({
-          ticker: "NOTIFICATIONS",
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
+
+        // Always send market summary email (market open or market close)
+        if (allStockSummaries.length > 0) {
+          summaryResults = await processMarketSummary(
+            allStockSummaries,
+            newSignals,
+            notifiableUsers,
+            trigger
+          );
+        }
       }
+    } catch (error) {
+      console.error("Notification processing failed:", error);
+      errors.push({
+        ticker: "NOTIFICATIONS",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     }
 
+    const allResults = [...notificationResults, ...summaryResults];
     const duration = Date.now() - startTime;
 
     return NextResponse.json({
       success: true,
+      trigger,
       summary: {
         processed: processed.length,
         errors: errors.length,
         signalChanges: newSignals.length,
-        notificationsSent: notificationResults.filter((r) => r.success).length,
-        notificationsFailed: notificationResults.filter((r) => !r.success).length,
+        notificationsSent: allResults.filter((r) => r.success).length,
+        notificationsFailed: allResults.filter((r) => !r.success).length,
+        marketSummariesSent: summaryResults.filter((r) => r.success).length,
         duration,
       },
       processed,
