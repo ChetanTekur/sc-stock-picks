@@ -13,7 +13,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - api/cron (cron endpoints use CRON_SECRET)
+     * - api/stocks/backfill (internal backfill endpoint)
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/cron).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/cron|api/stocks/backfill).*)",
   ],
 };
